@@ -1,0 +1,376 @@
+<html>
+<head>
+    <title>Leap Motion and three.js</title>
+    <style>
+        canvas { width: 100%; height: 90% }
+        #status { position: absolute; top: 0; left: 0; }
+    </style>
+    <script src="http://zeptojs.com/zepto.min.js"></script>
+    <script src="/static/js/three.js"></script>
+    <script>
+        var container;
+        var camera, scene, renderer;
+        var cube, plane;
+
+        var targetRotation = 0;
+        var targetRotationOnMouseDown = 0;
+
+        var mouseX = 0;
+        var mouseXOnMouseDown = 0;
+
+        var windowHalfX = window.innerWidth / 2;
+        var windowHalfY = window.innerHeight / 2;
+        var depth = 1000;
+        var handsMap = {};
+        var noHands = 0;
+
+        function init() {
+            container = document.createElement('div');
+            document.body.appendChild(container);
+
+            camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, depth);
+            camera.position.y = 150;
+            camera.position.z = 500;
+
+            scene = new THREE.Scene();
+
+            var cubeGeometry = new THREE.CubeGeometry( 200, 200, 200 );
+            for ( var i = 0; i < cubeGeometry.faces.length; i ++ ) {
+                cubeGeometry.faces[i].color.setHex( Math.random() * 0xffffff );
+            }
+
+            var cubeMaterial = new THREE.MeshBasicMaterial({
+                vertexColors: THREE.FaceColors
+            });
+
+            cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.y = 150;
+            //scene.add(cube);
+
+            // the cube shadow
+            var planeGeometry = new THREE.PlaneGeometry( 200, 200 );
+            planeGeometry.applyMatrix( new THREE.Matrix4().makeRotationX( - Math.PI / 2 ) );
+
+            var planeMaterial = new THREE.MeshBasicMaterial({
+                color: 0xe0e0e0
+            });
+
+            plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            scene.add(plane);
+
+            renderer = new THREE.CanvasRenderer();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+
+            container.appendChild( renderer.domElement );
+
+            document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+            document.addEventListener( 'touchstart', onDocumentTouchStart, false );
+            document.addEventListener( 'touchmove', onDocumentTouchMove, false );
+            window.addEventListener( 'resize', onWindowResize, false );
+
+            animate();
+        }
+
+        function onWindowResize() {
+
+            windowHalfX = window.innerWidth / 2;
+            windowHalfY = window.innerHeight / 2;
+
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }
+
+        function onDocumentMouseDown( event ) {
+
+            event.preventDefault();
+
+            document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+            document.addEventListener( 'mouseup', onDocumentMouseUp, false );
+            document.addEventListener( 'mouseout', onDocumentMouseOut, false );
+
+            mouseXOnMouseDown = event.clientX - windowHalfX;
+            targetRotationOnMouseDown = targetRotation;
+        }
+
+        function onDocumentMouseMove( event ) {
+            mouseX = event.clientX - windowHalfX;
+            targetRotation = targetRotationOnMouseDown + ( mouseX - mouseXOnMouseDown ) * 0.02;
+        }
+
+        function onDocumentMouseUp( event ) {
+            document.removeEventListener( 'mousemove', onDocumentMouseMove, false );
+            document.removeEventListener( 'mouseup', onDocumentMouseUp, false );
+            document.removeEventListener( 'mouseout', onDocumentMouseOut, false );
+        }
+
+        function onDocumentMouseOut( event ) {
+            document.removeEventListener( 'mousemove', onDocumentMouseMove, false );
+            document.removeEventListener( 'mouseup', onDocumentMouseUp, false );
+            document.removeEventListener( 'mouseout', onDocumentMouseOut, false );
+        }
+
+        function onDocumentTouchStart( event ) {
+            if ( event.touches.length === 1 ) {
+
+                event.preventDefault();
+
+                mouseXOnMouseDown = event.touches[ 0 ].pageX - windowHalfX;
+                targetRotationOnMouseDown = targetRotation;
+            }
+        }
+
+        function onDocumentTouchMove( event ) {
+            if ( event.touches.length === 1 ) {
+                event.preventDefault();
+
+                mouseX = event.touches[ 0 ].pageX - windowHalfX;
+                targetRotation = targetRotationOnMouseDown + ( mouseX - mouseXOnMouseDown ) * 0.05;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame( animate );
+            render();
+        }
+
+        function render() {
+            plane.rotation.y = cube.rotation.y += ( targetRotation - cube.rotation.y ) * 0.05;
+            renderer.render( scene, camera );
+        }
+
+        function particleRender(context) {
+
+            // we get passed a reference to the canvas context
+            context.beginPath();
+            // and we just have to draw our shape at 0,0 - in this
+            // case an arc from 0 to 2Pi radians
+            context.arc( 0, 0, 1, 0,  Math.PI * 2, true );
+            context.fill();
+        }
+
+        function getKey(id){
+            return ''+ id;
+        }
+
+        function updateHands(frame){
+            var newHandsMap = {};
+            noHands = 0;
+            for(var h=0, hl=frame.hands.length; h < hl; h++){
+                var leapHand = frame.hands[h];
+                var key = getKey(leapHand.id);
+                var existingHand = handsMap[key];
+                var newHand;
+                if(existingHand){
+                    newHand = updatehand(existingHand, leapHand);
+                    // only remove from the old handsMap if new version has fingers
+                    if(newHand){
+                        delete handsMap[key];
+                    }
+                }
+                else{
+                    newHand = createHand(leapHand);
+                    // only add the new hand if it had fingers
+                    if(newHand){
+                        addHandToScene(newHand);
+                    }
+                }
+
+                if(newHand){
+                    newHandsMap[key] = newHand;
+                    noHands++;
+                }
+            }
+
+            // remove old hands from scene
+            $.each(handsMap, function(key, hand){
+                removeHandFromScene(hand);
+            });
+
+            handsMap = newHandsMap;
+
+            if(noHands > 0){
+                console.log("handsMap", handsMap);
+            }
+        }
+
+        function updatehand(existingHand, leapHand){
+            var newHand = {};
+            if(!leapHand.fingers || leapHand.fingers.length < 0){
+                // hand should be removed
+                return null;
+            }
+
+            var leapFingers = leapHand.fingers;
+            for(var f=0, fl=leapFingers.length; f < fl; f++){
+                var leapFinger = leapFingers[f];
+                var key = getKey(leapFinger.id);
+                var existingFinger = existingHand[key];
+                var newFinger;
+                if(existingFinger){
+                    setParticlePosition(existingFinger, leapFinger.tip.position);
+                    delete existingHand[key];
+                    newFinger = existingFinger;
+                }
+                else{
+                    newFinger = createFingerParticle(leapFinger);
+                    scene.add(newFinger);
+                }
+                newHand[key] = newFinger;
+            }
+
+            // remove old fingers
+            $.each(existingHand, function(key, finger){
+                scene.remove(finger);
+            });
+
+            return newHand;
+        }
+
+        function createHand(leapHand){
+            if(leapHand.fingers && leapHand.fingers.length > 0){
+                var hand = {};
+                var leapFingers = leapHand.fingers;
+                for(var f=0, fl=leapFingers.length; f < fl; f++){
+                    var leapFinger = leapFingers[f];
+                    var key = getKey(leapFinger.id);
+                    hand[key] = createFingerParticle(leapFinger);
+                }
+
+                return hand;
+            }
+
+            // only create hands with fingers
+            return null;
+        }
+
+        function createFingerParticle(leapFinger){
+
+            var fingerMaterial = new THREE.ParticleCanvasMaterial({
+                color: 0x0044FF,
+                program: particleRender
+            });
+
+            var fingerParticle = new THREE.Particle(fingerMaterial);
+            fingerParticle.scale.x = fingerParticle.scale.y = 10;
+
+            setParticlePosition(fingerParticle, leapFinger.tip.position);
+
+            return fingerParticle;
+        }
+
+        function removeHandFromScene(hand){
+            $.each(hand, function(key, finger){
+                scene.remove(finger);
+            });
+        }
+
+        function addHandToScene(hand){
+            $.each(hand, function(key, finger){
+                scene.add(finger);
+            });
+        }
+
+        // these sensor ranges are subject to lighting conditions etc
+        var minX = -240; // -233.71
+        var maxX = 250; // 242.46
+        var minY = 30; // 30.97
+        var maxY = 266; // 495.89
+        var minZ = -165; // -161.12
+        var maxZ = 120; // 114.34
+
+        function scaleValue(val, min, max, rangeMin, rangeMax){
+            return ((val  - min) / (max - min) ) * (rangeMax - rangeMin) + rangeMin;
+        };
+
+        function setParticlePosition(particle, leapPos){
+            // console.log("leap pos = ("+ leapPos.x +", "+ leapPos.y +", "+ leapPos.z +")");
+
+            var x = scaleValue(leapPos.x, minX, maxX, -window.innerWidth, window.innerWidth);
+            var y = scaleValue(leapPos.y, minY, maxY, -400, window.innerHeight);
+            var z = scaleValue(leapPos.z, minZ, maxZ, -depth/2, depth/2);
+
+            particle.position.set(x,y,z);
+            // console.log("new particle pos = ("+ x +", "+ y +", "+ z +")");
+        };
+
+        var ws = new WebSocket("ws://localhost:8888/leapsocket");
+
+        // find sensor range
+        // var minx, miny, minz;
+        // var maxx, maxy, maxz;
+        ws.onmessage = function (evt) {
+            var status = "no hand detected";
+            if (evt.data) {
+                var leapMsg = JSON.parse(evt.data);
+
+                if(leapMsg.state === "frame"){
+                    updateHands(leapMsg.frame);
+                }
+
+                if(leapMsg.state === "frame" && leapMsg.frame.hands.length > 0){
+                    var hands = leapMsg.frame.hands;
+                    status = hands.length +" hands detected";
+                    var hand = hands[0];
+                    if(hand.fingers.length > 0){
+                        var fingers = hand.fingers;
+                        var finger = fingers[0];
+                        var pos = finger.tip.position;
+                        status = fingers.length +' fingers, finger 1 at ('+ pos.x.toFixed(2) +','+ pos.y.toFixed(2) +','+ pos.z.toFixed(2) +')';
+
+
+                        // setParticlePosition(pos);
+                        // status += "<br/>particle pos = ("+ fingerParticle.position.x.toFixed(2) +","+ fingerParticle.position.y.toFixed(2) +","+ fingerParticle.position.z.toFixed(2) +")"
+
+                        // update sensor range
+                        // var changed = false;
+                        // if(pos.x <= minx || !minx){
+                        //     minx = pos.x;
+                        //     changed = true;
+                        // }
+                        // if(pos.x >= maxx || !maxx){
+                        //     maxx = pos.x;
+                        //     changed = true;
+                        // }
+
+                        // if(pos.y <= miny || !miny){
+                        //     miny = pos.y;
+                        //     changed = true;
+                        // }
+                        // if(pos.y >= maxy || !maxy){
+                        //     maxy = pos.y;
+                        //     changed = true;
+                        // }
+
+                        // if(pos.z <= minz || !minz){
+                        //     minz = pos.z;
+                        //     changed = true;
+                        // }
+                        // if(pos.z >= maxz || !maxz){
+                        //     maxz = pos.z;
+                        //     changed = true;
+                        // }
+
+                        // if(changed){
+                        //     console.log("x = "+ minx +"/"+maxx +", y = "+ miny +"/"+ maxy +", z = "+ minz +"/"+ maxz);
+                        // }
+
+                        // if(fingers[0].velocity){
+                        //     console.log(fingers[0].velocity);
+                        // }
+
+                    }
+                }
+            }
+
+            $('#status').html(status);
+        };
+
+    </script>
+</head>
+<body onload='init();'>
+    <div id='status'>
+    </div>
+</body>
+</html>
