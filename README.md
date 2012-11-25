@@ -7,16 +7,16 @@ Uses an enhanced version of the Leap -> Python -> WebSockets bridge [leapfrog](h
  Williams.
 
 ##How to run
- 0. Install the [Leap Motion SDK](https://developer.leapmotion.com/downloads), plug in the Leap Motion and run the Leap application (the icon should appear green in the system tray).
+ 1. Install the [Leap Motion SDK](https://developer.leapmotion.com/downloads), plug in the Leap Motion and run the Leap application (the icon should appear green in the system tray).
  1. Install [python](http://www.python.org/download/)
- 2. Install [PIP](http://www.pip-installer.org/en/latest/installing.html) (you may have to setup [distribute](http://pypi.python.org/pypi/distribute#installation-instructions) or [easy_install](http://packages.python.org/distribute/easy_install.html) first)
- 3. Run 'pip install tornado' (http://www.tornadoweb.org/)
- 4. Run 'pip install simplejson' (https://github.com/simplejson/simplejson)
- 5. Run 'python websocketserver.py'
- 6. Open browser to http://localhost:8888
+ 1. Install [PIP](http://www.pip-installer.org/en/latest/installing.html) (you may have to setup [distribute](http://pypi.python.org/pypi/distribute#installation-instructions) or [easy_install](http://packages.python.org/distribute/easy_install.html) first)
+ 1. Run 'pip install tornado' (http://www.tornadoweb.org/)
+ 1. Run 'pip install simplejson' (https://github.com/simplejson/simplejson)
+ 1. Run 'python websocketserver.py'
+ 1. Open browser to http://localhost:8888
 
 ##If you don't have the Leap Motion hardware
-For step 5, you can playback a file with a recording I made of the frame data by using this command instead:
+For step 6, you can playback a file with a recording I made of the frame data by using this command instead:
 
     python websocketserver.py --playback=recording.json
 
