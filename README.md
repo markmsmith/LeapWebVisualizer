@@ -3,7 +3,7 @@ LeapWebVisualizer
 
 Project to visualize the hand and finger data from the Leap Motion in a web browser.
 
-Uses the Leap -> Python -> WebSockets bridge [leapfrog'](https://github.com/tylerwilliams/leapfrog) written by Tyler
+Uses an enhanced version of the Leap -> Python -> WebSockets bridge [leapfrog](https://github.com/tylerwilliams/leapfrog), written by Tyler
  Williams.
 
 ##How to run
